@@ -1,0 +1,10 @@
+{	
+	"action": "WAKE_DEVICE_BY_MAC",
+	"values": [
+		{
+			"value": "90:2B:34:37:FB:4E",
+			"format": "String"
+		}
+	],
+	"type": "REQUEST"
+}

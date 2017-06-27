@@ -1,0 +1,30 @@
+{
+	"condition": {
+		"source": "NETWORK_DEVICE_DETECTION",
+	    "action": "NETWORK_DEVICE_CONNECTED",
+	    "type": "DETECT",
+	    "consumeAfterMatch": false,
+	    "values":[
+	    	{
+	    		"comparator": "EQUALS",
+	    		"index": 0,
+	    		"value": "192.168.178.24",
+	    		"format": "String"
+	    	}
+	    ]
+	},
+	"actionevents": [
+		{
+			"name": "PowerRadioB",
+			"target": "raspberry"
+		},
+		{
+			"name": "DelayPowerSub",
+			"target": "raspberry"
+		},
+		{
+			"name": "LaunchWakePC",
+			"target": "raspberry"
+		}
+	]
+}

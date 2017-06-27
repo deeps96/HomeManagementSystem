@@ -1,0 +1,14 @@
+{	
+	"action": "SEND_RADIO_SIGNAL_FOR_BUTTON_STRING",
+	"values": [
+		{
+			"value": "B",
+			"format": "String"
+		},
+		{
+			"value": "True",
+			"format": "Boolean"
+		}
+	],
+	"type": "REQUEST"
+}

@@ -1,0 +1,14 @@
+{
+	"action": "DELAY_ACTION_EVENT",
+	"values": [
+		{
+			"value": "2",
+			"format": "Integer"
+		},
+		{
+			"value": "PowerSub",
+			"format": "String"
+		}
+	],
+	"type": "REQUEST"
+}

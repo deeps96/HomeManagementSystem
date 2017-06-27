@@ -1,0 +1,22 @@
+{
+	"condition": {
+		"source": "CLAPDETECTOR",
+	    "action": "CLAP_DETECTED",
+	    "type": "DETECT",
+	    "consumeAfterMatch": false,
+	    "values":[
+	    	{
+	    		"comparator": "EQUALS",
+	    		"index": 0,
+	    		"value": "2",
+	    		"format": "Integer"
+	    	}
+	    ]
+	},
+	"actionevents": [
+		{
+			"name": "VoiceControl",
+			"target": "raspberry"
+		}
+	]
+}

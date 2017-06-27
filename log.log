@@ -1,0 +1,8 @@
+BluetoothStack not detected
+Event src: CLAPDETECTOR type: DETECT action: MICRO_CONNECTED values: [] at: 20-06-2017 03:57:47
+LED Board not found.
+[main] INFO de.deeps.sounddriver.SoundDriver - Bass-Lib loaded successfully
+Wrong OS! Raspberry required.
+Event src: NETWORK_DEVICE_DETECTION type: DETECT action: NETWORK_DEVICE_CONNECTED values: [192.168.178.24] at: 20-06-2017 03:57:47
+Event src: EVENT_FORWARDER type: REQUEST action: SEND_EVENT_BROADCAST values: [Event src: NETWORK_DEVICE_DETECTION type: DETECT action: NETWORK_DEVICE_CONNECTED values: [192.168.178.24] at: 20-06-2017 03:57:47] at: 20-06-2017 03:57:47
+READY

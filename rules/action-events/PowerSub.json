@@ -1,0 +1,14 @@
+{	
+	"action": "PRESS_KEY",
+	"values": [
+		{
+			"value": "subwoofer",
+			"format": "String"
+		},
+		{
+			"value": "POWER_TOGGLE",
+			"format": "String"
+		}
+	],
+	"type": "REQUEST"
+}

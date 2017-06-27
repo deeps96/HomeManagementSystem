@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta name="theme-color" content="#2196F3" />
+	
+		<title>HMS - Home-Management-System</title>
+		<!--Import Google Icon Font-->
+		<link href="fonts/material_icons/icon.css" rel="stylesheet">
+		<!--Import materialize.css-->
+		<link type="text/css" rel="stylesheet" href="css/materialize.min.css" media="screen,projection"/>
+
+		<!--Let browser know website is optimized for mobile-->
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		
+		<script type="text/javascript" src="js/jquery-2.1.1.min.js"></script>
+		<script type="text/javascript" src="js/js.cookie.min.js"></script>
+		<script type="text/javascript" src="js/materialize.min.js"></script>
+		<script type="text/javascript" src="js/hms.js"></script> <!-- has to be after jquery and materialize -->
+	
+		<script type="text/javascript">
+			$(document).ready(function(){ //site loaded without images
+				var timeRegEx = new RegExp("^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$");
+						
+				//hide preloader, show elements when page loaded
+				$('.preloader-wrapper').hide();
+				$('.container').show();
+				//hover effect for buttons
+				$('.col.s3').hover(
+					function(){$(this).toggleClass('lighten-2');}
+				);
+				//switch to last selected tab
+				var selectedTabID = Cookies.get('selectedTab');
+				if (selectedTabID){
+					$('ul.tabs').tabs('select_tab', selectedTabID);
+				}
+				$('ul.tabs').tabs('init', {
+					onShow: function(selectedTab) {
+						Cookies.set('selectedTab', selectedTab.attr('id'));
+                    },
+                });
+				//tags for alarms
+				$('.chips').material_chip({
+					secondaryPlaceholder: 'Format hh:mm',
+					data: #alarmsinjson#,
+				});
+				$('.chips').on('chip.add', function(e, chip){
+					//check time format
+					if (timeRegEx.test(chip.tag)){
+						//add watch image
+						addAlarm(chip.tag);
+						e.delegateTarget.children[e.delegateTarget.children.length - 2].insertAdjacentHTML('AfterBegin', '<img src="images/AlarmIcon.png">');
+					} else {
+						//remove element
+						e.delegateTarget.children[e.delegateTarget.children.length - 2].getElementsByClassName('close')[0].click();		
+					}
+					
+				});
+
+				$('.chips').on('chip.delete', function(e, chip){
+					removeAlarm(chip.tag);
+				});
+				
+				/*if (#isPCLivestreamAvailable (muss nicht unbedingt aktiv sein)#) {
+					var livestreamContainer = $('pclivestream');
+					livestreamContainer.find('span').insertAdjacentHTML('<img id="pclivestreamframe" style="margin: 0 auto; display: block;" src="http://192.168.178.36:9000"/>');
+					if (#isPCLivestreamOn#) {
+						$('#pclivestreamcheckbox').attr('checked', true);
+					}
+					livestreamContainer.show();
+				}
+				if (#isPILivestreamAvailable (muss nicht unbedingt aktiv sein)#) {
+					var livestreamContainer = $('pilivestream');
+					livestreamContainer.find('span').insertAdjacentHTML('<img id="pilivestreamframe" style="margin: 0 auto; display: block;" src="http://192.168.178.96:9000"/>');
+					if (#isPILivestreamOn#) {
+						$('#pilivestreamcheckbox').attr('checked', true);
+					}
+					livestreamContainer.show();
+				}*/
+				if (!#isPIOnline#){
+					$('#pitab').hide();
+					$('#controltab').hide();
+					$('#lighttab').hide();
+					$('#subwoofertab').hide();
+					$('#radiotab').hide();
+					$('ul.tabs').tabs('select_tab', 'pc');
+				}
+				if (#isPCOnline#) {
+					$('#pcpowercheckbox').attr('checked', true);
+				}
+				
+				loadLogForCommand();
+			});
+			function shutdownAll(){
+				shutdown('pc');
+				shutdown('pi');
+				$(shutdownconfirmdialog).hide()
+				$(shutdowndialog).show()
+			}
+			function sendRuleUpdate(checkbox){
+				updateRuleActivation(checkbox.parentElement.parentElement.cells[1].innerText, checkbox.checked);
+			}
+			function updatePCState(state){
+				if (state){
+					powerup('pc');
+				} else {
+					shutdown('pc');
+				}
+			}
+			function startSpotify(){
+				startProgramOnPC('spotify');
+			}
+			function insertCommandLog(response){
+				$('#commandlog').html(response);
+			}
+			function loadLogForCommand(){
+				loadLog(insertCommandLog);
+			}
+		</script>
+	
+		<style>
+			body {background-color: #fcfcfc; display: flex; min-height: 100vh; flex-direction: column; z-index: 0}
+			main {flex: 1 0 auto;}
+		
+			.tabs {box-shadow: 0 8px 20px -8px grey; border-radius: 0px 0px 3px 3px;}
+			.tabs .tab a {color: #90caf9}
+			.tabs .tab a:hover {color: #fff}
+			.tabs .tab a.active {color: #fff}
+			.tabs .indicator {background-color: #fff; height: 4px}
+			.tabs .tab img {height: 1em; vertical-align: middle;}
+			
+			.container {margin-top: 1.5rem; margin-bottom: 20px; display: none;}
+			
+			.mywrapper {padding: 2rem;}
+			.col img {margin-left: auto; display: block; margin-right: auto;}
+			.col {border-radius: 16px;}
+			.row .col.offset-s05 {margin-left: 4.1666666667%;}
+			.navbar-fixed {height: 112px !important;}
+			
+			.preloader-wrapper.centered {position: fixed; top: 50%; left: 50%; margin-left: -32px}
+			.btn {margin-right: 15px; margin-bottom: 10px}
+			
+			.switch label .lever {background-color: #F44336}
+			.switch label .lever:after {background-color: #F44336}
+			.switch label input[type=checkbox]:checked+.lever{background-color:#4CAF50}
+			.switch label input[type=checkbox]:checked+.lever:after{background-color:#4CAF50}
+			
+			.card-action a {cursor: pointer;}
+			
+			.mydialog {display: none; position: fixed; top: 33%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;}
+		</style>
+	</head>
+
+	<body>
+		<header>
+			<div class="navbar-fixed">
+				<nav class="nav-extended blue">
+					<div class="hide-on-small-only" style="display: inline;">
+						<div class="nav-wrapper">
+							<div class="brand-logo center">HMS - Home Management System</div>
+						</div>
+					</div>
+					<div class="nav-content">
+						<ul class="tabs tabs-transparent tabs-fixed-width">
+							<li id="controltab" class="tab"><a href="#controlpanel" class="active"><img src="images/ControlPanelIcon.png"> Control</a></li>
+							<li id="pctab" class="tab"><a href="#pc"><img src="images/PCIcon.png"> PC</a></li>
+							<li id="pitab" class="tab"><a href="#pi"><img src="images/PIIcon.png"> PI</a></li>
+							<li id="lighttab" class="tab"><a href="#lightremote"><img src="images/LightIcon.png"> Licht</a></li>
+							<li id="subwoofertab" class="tab"><a href="#speakerremote"><img src="images/SpeakerIcon.png"> Sub</a></li>
+							<li id="radiotab" class="tab"><a href="#radioremote"><img src="images/RadioIcon.png"> Funk</a></li>
+						</ul>
+					</div>
+				</nav>
+			</div>
+		</header>
+		<main>
+			<div class="preloader-wrapper big active centered">
+				<div class="spinner-layer spinner-blue">
+					<div class="circle-clipper left">
+						<div class="circle"></div>
+					</div>
+					<div class="gap-patch">
+						<div class="circle"></div>
+					</div>
+					<div class="circle-clipper right">
+						<div class="circle"></div>
+					</div>
+				</div>
+				<div class="spinner-layer spinner-red">
+					<div class="circle-clipper left">
+						<div class="circle"></div>
+					</div>
+					<div class="gap-patch">
+						<div class="circle"></div>
+					</div>
+					<div class="circle-clipper right">
+						<div class="circle"></div>
+					</div>
+				</div>
+				<div class="spinner-layer spinner-yellow">
+					<div class="circle-clipper left">
+						<div class="circle"></div>
+					</div>
+					<div class="gap-patch">
+						<div class="circle"></div>
+					</div>
+					<div class="circle-clipper right">
+						<div class="circle"></div>
+					</div>
+				</div>
+				<div class="spinner-layer spinner-green">
+					<div class="circle-clipper left">
+						<div class="circle"></div>
+					</div>
+					<div class="gap-patch">
+						<div class="circle"></div>
+					</div>
+					<div class="circle-clipper right">
+						<div class="circle"></div>
+					</div>
+				</div>
+			</div>
+			<div id="shutdownconfirmdialog" class="mydialog">
+				<div class="card blue-grey lighten-3">
+					<div class="card-content red-text text-darken-4">
+						<span class="card-title truncate">Alles herunterfahren</span>
+						<p>
+							Bist du dir sicher, dass du alles herunterfahren willst?
+						</p>
+					</div>
+					<div class="card-action blue-text text-darken-2">
+					  <a class="red-text" onclick="shutdownAll()">Ja</a>
+					  <a class="blue-text" onclick="$(shutdownconfirmdialog).hide()">Cancel</a>
+					</div>
+				</div>
+			</div>
+			<div id="shutdowndialog" class="mydialog">
+				<div class="card blue-grey lighten-3">
+					<div class="card-content red-text text-darken-4">
+						<span class="card-title truncate">Alles herunterfahren</span>
+						<p>
+							Alle verbundenen Systeme werden heruntergefahren.
+							Dies betrifft keine Lichter und nicht die Hauptstromversorgung.
+						</p>
+					</div>
+				</div>
+			</div>
+			<div class="container z-depth-1 white">
+				<div id="controlpanel" class="mywrapper">
+					<ul class="collapsible" data-collapsible="accordion">
+						<li>
+								<div class="collapsible-header">Allgemein</div>
+								<div class="collapsible-body">
+									<a class="waves-effect waves-light btn red" onclick="$('#shutdownconfirmdialog').show();">Alles aus</a>
+								</div>
+						</li>
+						<li>
+								<div class="collapsible-header">Modi</div>
+								<div class="collapsible-body">
+									<a class="waves-effect waves-light btn blue" onclick="switchToMode('standard')">Standard</a>
+									<a class="waves-effect waves-light btn blue" onclick="switchToMode('cinema')">Kinomodus</a>
+									<a class="waves-effect waves-light btn blue" onclick="switchToMode('working')">Arbeitsmodus</a>
+									<a class="waves-effect waves-light btn blue" onclick="switchToMode('eating')">Essmodus</a>
+									<a class="waves-effect waves-light btn blue" onclick="switchToMode('party')">Party 2.0</a>
+								</div>
+						</li>
+						<li>
+								<div class="collapsible-header">Wecker</div>
+								<div class="collapsible-body">
+									<a class="waves-effect waves-light btn red" onclick="silenceAlarms();" style="float: right;">Alarm deaktivieren</a>							
+									<div class="chips"></div>
+								</div>
+						</li>
+						<li>
+							<div class="collapsible-header">Regeln</div>
+							<div class="collapsible-body">
+								<table>
+									<thead>
+										<tr>
+											<th data-field="id">ID</th>
+											<th data-field="name">Name</th>
+											<th data-field="isactive">Item Name</th>
+										</tr>
+									</thead>
+									<tbody>
+										#ruleRows#
+									</tbody>
+								</table>
+							</div>
+						</li>
+						<li>
+							<div class="collapsible-header">Log</div>
+							<div class="collapsible-body">
+								<div class="card-panel" style="max-height: 200px; overflow: overlay;">
+									<i class="material-icons" style="float: right; cursor: pointer" onclick="loadLogForCommand();">loop</i>
+									<span id="commandlog" class="blue-text text-darken-2">
+									</span>
+								</div>
+							</div>
+						</li>
+					  </ul>
+				</div>
+				<div id="pc" class="mywrapper">
+					<div class="card-panel">
+						<h5 class="center-align">&Uuml;bersicht</h5>
+						<span class="blue-text text-darken-2">
+							<div class="switch">
+								<label>
+									PC herunterfahren
+									<input id="pcpowercheckbox" type="checkbox" onclick="updatePCState(this.checked)">
+									<span class="lever"></span>
+									PC starten
+								</label>
+							</div>
+							<p class="range-field">
+								<label for="pcVolumeSlider">Lautst&auml;rke</label>
+								<input type="range" id="pcVolumeSlider" min="0" max="100" oninput="setPCVolumeTo(this.value)" value="#currentVolume#" />
+							</p>
+						</span>
+					</div>
+					<div id="pclivestream" class="card-panel" style="display: none">
+						<h5 class="center-align">Livestream</h5>
+						<span class="blue-text text-darken-2">
+							<div class="switch">
+								<label>
+									Livestream stoppen
+									<input id="pclivestreamcheckbox" type="checkbox" onclick="updateLivestreamState('pc', this.checked);">
+									<span class="lever"></span>
+									Livestream starten
+								</label>
+							</div>
+						</span>
+					</div>
+					<div class="card-panel">
+						<h5 class="center-align">Features</h5>
+						<span class="blue-text text-darken-2">
+							<a class="waves-effect waves-light btn blue" onclick="startVisualizer()">Visualizer starten</a>
+							<a class="waves-effect waves-light btn blue" onclick="startAmbilight()">Ambilight starten</a>
+							<a class="waves-effect waves-light btn blue" onclick="stopFeatures()">Alle stoppen</a>
+						</span>
+					</div>
+					<div class="card-panel">
+						<h5 class="center-align">Programme</h5>
+						<span class="blue-text text-darken-2">
+							<a class="waves-effect waves-light btn blue" onclick="startSpotify()"><i class="material-icons left">play_arrow</i>Spotify starten</a>
+						</span>
+					</div>
+				</div>
+				<div id="pi" class="mywrapper">
+					<div class="card-panel">
+						<h5 class="center-align">Übersicht</h5>
+						<span class="blue-text text-darken-2">
+							<a class="waves-effect waves-light btn red" onclick="shutdown('pi');">PI herunterfahren</a>
+						</span>
+					</div>
+					<div id="pilivestream" class="card-panel" style="display:none">
+						<h5 class="center-align">Livestream</h5>
+						<span class="blue-text text-darken-2">
+							<div class="switch">
+								<label>
+									Livestream stoppen
+									<input id="pilivestreamcheckbox" type="checkbox" onclick="updateLivestreamState('pi', this.checked);">
+									<span class="lever"></span>
+									Livestream starten
+								</label>
+							</div>
+						</span>
+					</div>
+				</div>
+				<div id="lightremote" class="mywrapper">
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('POWER_ON');">
+							<img id="poweron" class="responsive-img" src="images/PowerIcon.png">
+							<p class="promo-caption center-align truncate">AN</p>
+						</div>
+						<div class="col s3 offset-s4 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('POWER_OFF');">
+							<img id="poweroff" class="responsive-img" src="images/PowerIcon.png">
+							<p class="promo-caption center-align truncate">AUS</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('BRIGHTNESS_DOWN');">
+							<img id="darker" class="responsive-img" src="images/BrightnessLow.png">
+							<p class="promo-caption center-align truncate">DUNKLER</p>
+						</div>
+						<div class="col s3 offset-s4 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('BRIGHTNESS_UP');">
+							<img id="brighter" class="responsive-img" src="images/BrightnessHigh.png">
+							<p class="promo-caption center-align truncate">HELLER</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('CANDLE_MODE');">
+							<img id="candle" class="responsive-img" src="images/CandleMode.png">
+							<p class="promo-caption center-align truncate">KERZENLICHT</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('LIGHT_BULB_MODE');">
+							<img id="lightbulb" class="responsive-img" src="images/LightBulbMode.png">
+							<p class="promo-caption center-align truncate">GLÜHBIRNLICHT</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('SUN_MODE');">
+							<img id="sun" class="responsive-img" src="images/SunMode.png">
+							<p class="promo-caption center-align truncate">SONNENLICHT</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('ICE_MODE');">
+							<img id="ice" class="responsive-img" src="images/IceMode.png">
+							<p class="promo-caption center-align truncate">KALTES LICHT</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('EVENING_MODE');">
+							<img id="night" class="responsive-img" src="images/NightMode.png">
+							<p class="promo-caption center-align truncate">NACHT</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('SLEEP_MODE');">
+							<img id="sleep" class="responsive-img" src="images/SleepMode.png">
+							<p class="promo-caption center-align truncate">SCHLAFEN</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('READING_MODE');">
+							<img id="read" class="responsive-img" src="images/ReadMode.png">
+							<p class="promo-caption center-align truncate">LESEN</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('MEDITATION_MODE');">
+							<img id="meditation" class="responsive-img" src="images/MeditationMode.png">
+							<p class="promo-caption center-align truncate">MEDITATION</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('MORNING_MODE');">
+							<img id="sunrise" class="responsive-img" src="images/SunriseMode.png">
+							<p class="promo-caption center-align truncate">SONNENAUFGANG</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('CIRCLE_MODE');">
+							<img id="color" class="responsive-img" src="images/ColorMode.png">
+							<p class="promo-caption center-align truncate">FARBEN</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('PARTY_MODE');">
+							<img id="party" class="responsive-img" src="images/PartyMode.png">
+							<p class="promo-caption center-align truncate">PARTY</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('VACATION_MODE');">
+							<img id="beach" class="responsive-img" src="images/BeachMode.png">
+							<p class="promo-caption center-align truncate">URLAUB</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('OCEAN_MODE');">
+							<img id="ocean" class="responsive-img" src="images/OceanMode.png">
+							<p class="promo-caption center-align truncate">WASSER</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('FIRE_MODE');">
+							<img id="fire" class="responsive-img" src="images/FireMode.png">
+							<p class="promo-caption center-align truncate">FEUER</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnLight('LOVE_MODE');">
+							<img id="romantic" class="responsive-img" src="images/RomanticMode.png">
+							<p class="promo-caption center-align truncate">ROMANTIK</p>
+						</div>
+					</div>
+				</div>
+				<div id="speakerremote" class="mywrapper">
+					<div class="row">
+						<div class="col s3 offset-s8 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnSub('POWER_TOGGLE');">
+							<img id="poweron" class="responsive-img" src="images/PowerIcon.png">
+							<p class="promo-caption center-align truncate">AN / AUS</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light"onclick="pressKeyOnSub('VOLUME_DOWN');">
+							<img id="quiter" class="responsive-img" src="images/QuiterIcon.png">
+							<p class="promo-caption center-align truncate">LEISER</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnSub('MUTE');">
+							<img id="mute" class="responsive-img" src="images/MuteIcon.png">
+							<p class="promo-caption center-align truncate">STUMM</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnSub('VOLUME_UP');">
+							<img id="louder" class="responsive-img" src="images/LouderIcon.png">
+							<p class="promo-caption center-align truncate">LAUTER</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnSub('INPUT_CD');">
+							<img id="cdin" class="responsive-img" src="images/CDIcon.png">
+							<p class="promo-caption center-align truncate">CD</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnSub('INPUT_PC');">
+							<img id="pcin" class="responsive-img" src="images/PCInIcon.png">
+							<p class="promo-caption center-align truncate">PC</p>
+						</div>
+						<div class="col s3 offset-s05 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnSub('INPUT_DIGITAL');">
+							<img id="opticalin" class="responsive-img" src="images/OpticalIcon.png">
+							<p class="promo-caption center-align truncate">OPTISCH</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnSub('BASS_DOWN');">
+							<img id="lowerbass" class="responsive-img" src="images/LowerIcon.png">
+							<p class="promo-caption center-align truncate">BASS-</p>
+						</div>
+						<div class="col s3 offset-s4 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnSub('BASS_UP');">
+							<img id="higherbass" class="responsive-img" src="images/HigherIcon.png">
+							<p class="promo-caption center-align truncate">BASS+</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnSub('SUBWOOFER_DOWN');">
+							<img id="lowersub" class="responsive-img" src="images/LowerIcon.png">
+							<p class="promo-caption center-align truncate">SUBWOOFER-</p>
+						</div>
+						<div class="col s3 offset-s4 grey lighten-4 waves-effect waves-light" onclick="pressKeyOnSub('SUBWOOFER_UP');">
+							<img id="highersub" class="responsive-img" src="images/HigherIcon.png">
+							<p class="promo-caption center-align truncate">SUBWOOFER+</p>
+						</div>
+					</div>
+				</div>
+				<div id="radioremote" class="mywrapper">
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressPowerOnKeyOnRadio('a');">
+							<img id="powerona" class="responsive-img" src="images/PowerIcon.png">
+							<p class="promo-caption center-align truncate">A AN</p>
+						</div>
+						<div class="col s3 offset-s4 grey lighten-4 waves-effect waves-light" onclick="pressPowerOffKeyOnRadio('a');">
+							<img id="powerona" class="responsive-img" src="images/PowerIcon.png">
+							<p class="promo-caption center-align truncate">A AUS</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressPowerOnKeyOnRadio('b');">
+							<img id="poweronb" class="responsive-img" src="images/PowerIcon.png">
+							<p class="promo-caption center-align truncate">B AN</p>
+						</div>
+						<div class="col s3 offset-s4 grey lighten-4 waves-effect waves-light" onclick="pressPowerOffKeyOnRadio('b');">
+							<img id="poweronb" class="responsive-img" src="images/PowerIcon.png">
+							<p class="promo-caption center-align truncate">B AUS</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressPowerOnKeyOnRadio('c');">
+							<img id="poweronc" class="responsive-img" src="images/PowerIcon.png">
+							<p class="promo-caption center-align truncate">C AN</p>
+						</div>
+						<div class="col s3 offset-s4 grey lighten-4 waves-effect waves-light" onclick="pressPowerOffKeyOnRadio('c');">
+							<img id="poweronc" class="responsive-img" src="images/PowerIcon.png">
+							<p class="promo-caption center-align truncate">C AUS</p>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col s3 offset-s1 grey lighten-4 waves-effect waves-light" onclick="pressPowerOnKeyOnRadio('d');">
+							<img id="powerond" class="responsive-img" src="images/PowerIcon.png">
+							<p class="promo-caption center-align truncate">D AN</p>
+						</div>
+						<div class="col s3 offset-s4 grey lighten-4 waves-effect waves-light" onclick="pressPowerOffKeyOnRadio('d');">
+							<img id="powerond" class="responsive-img" src="images/PowerIcon.png">
+							<p class="promo-caption center-align truncate">D AUS</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</main>
+		<footer class="page-footer blue">
+			<div class="footer-copyright">
+				<div class="container center-align">
+					© 2017 Deeps
+				</div>
+			</div>
+		</footer>
+	</body>
+</html>

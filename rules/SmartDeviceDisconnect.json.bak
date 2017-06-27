@@ -1,0 +1,26 @@
+{
+	"condition": {
+		"source": "NETWORK_DEVICE_DETECTION",
+	    "action": "NETWORK_DEVICE_DISCONNECTED",
+	    "type": "DETECT",
+	    "consumeAfterMatch": false,
+	    "values":[
+	    	{
+	    		"comparator": "EQUALS",
+	    		"index": 0,
+	    		"value": "192.168.178.24",
+	    		"format": "String"
+	    	}
+	    ]
+	},
+	"actionevents": [
+		{
+			"name": "PowerOffSub",
+			"target": "raspberry"
+		},
+		{
+			"name": "SleepPC",
+			"target": "standpc"
+		}
+	]
+}
