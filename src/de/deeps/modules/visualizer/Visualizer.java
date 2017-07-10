@@ -1,16 +1,21 @@
 package de.deeps.modules.visualizer;
 
 import java.awt.Color;
-import java.nio.ByteBuffer;
+import java.util.LinkedList;
 
 import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.TargetDataLine;
 
-import ca.uol.aig.fftpack.RealDoubleFFT;
+import be.tarsos.dsp.AudioEvent;
+import be.tarsos.dsp.AudioProcessor;
+import be.tarsos.dsp.SilenceDetector;
+import be.tarsos.dsp.io.jvm.JVMAudioInputStream;
+import be.tarsos.dsp.util.fft.FFT;
 import de.deeps.event.Event;
 import de.deeps.event.Event.Source;
 import de.deeps.event.EventCollector;
@@ -26,26 +31,19 @@ import de.deeps.modules.Module;
  * @author Deeps
  */
 
-public class Visualizer extends Module implements Runnable {
+public class Visualizer extends Module implements AudioProcessor {
 
-	private final Color[] colorTable = new Color[] { Color.decode("#000000"),
-			Color.decode("#f44336"), Color.decode("#e91e63"),
-			Color.decode("#9c27b0"), Color.decode("#673ab7"),
-			Color.decode("#3f51b5"), Color.decode("#2196f3"),
-			Color.decode("#03a9f4"), Color.decode("#00bcd4"),
-			Color.decode("#009688"), Color.decode("#4caf50"),
-			Color.decode("#8bc34a"), Color.decode("#cddc39"),
-			Color.decode("#ffeb3b"), Color.decode("#ffc107"),
-			Color.decode("#ff9800"), Color.decode("#ffffff"),
-			Color.decode("#ffffff"), Color.decode("#ffffff") };
-	private final float SAMPLE_RATE = 44100.0f;
-	private final int BUFFER_SIZE = 512, CHANNEL = 1;
+	private final double SILENCE_THRESHOLD_IN_DB = -80.0d;
+	private final int BUFFER_SIZE = 512, OVERLAP = BUFFER_SIZE / 2;
 	private final String VIRTUAL_MIXER_NAME = "Line 1 (Virtual Audio Cable)";
 
-	private byte[] buffer;
-	private int blackCounter;
-	private RealDoubleFFT fft;
-	private StaticQueue lastMaxMagnitudes;
+	private AudioFormat audioFormat;
+	private FFT fft = new FFT(BUFFER_SIZE);
+	private FixedList[] colorLists;
+	private float[] amplitudes = new float[BUFFER_SIZE / 2];
+	private NonClosingDispatcher audioDispatcher;
+	private SilenceDetector silenceDetector;
+	private StaticQueue[] colorQueues;
 	private TargetDataLine line;
 
 	public Visualizer(EventCollector collector, String machineName) {
@@ -103,9 +101,9 @@ public class Visualizer extends Module implements Runnable {
 		try {
 			line = getVirtualLine();
 			if (line != null) {
-				line.open();
+				line.open(getAudioFormat(), BUFFER_SIZE);
+				initializeAudioDispatcher();
 			}
-			fft = new RealDoubleFFT(BUFFER_SIZE / 2);
 			isAvailable = true;
 		} catch (LineUnavailableException e) {
 			e.printStackTrace();
@@ -124,92 +122,109 @@ public class Visualizer extends Module implements Runnable {
 		if (!isRunning) {
 			return;
 		}
-		blackCounter = 0;
-		lastMaxMagnitudes = new StaticQueue();
-		buffer = new byte[BUFFER_SIZE];
+		line.flush();
+		line.start();
+		initializeColorLists();
+		initializeColorQueues();
+		new Thread(audioDispatcher).start();
 		collector.addEvent(
 			TCPEvent.createSendEventToMachineName(
 				Source.VISUALIZER,
 				"raspberry",
 				DioderEvent.createOnRequest(Source.VISUALIZER)));
-		new Thread(this).start();
+	}
+
+	private void initializeColorQueues() {
+		colorQueues = new StaticQueue[3]; // RGB
+		for (int iColor = 0; iColor < colorLists.length; iColor++) {
+			colorQueues[iColor] = new StaticQueue();
+		}
+	}
+
+	private void initializeColorLists() {
+		colorLists = new FixedList[3]; // RGB
+		for (int iColor = 0; iColor < colorLists.length; iColor++) {
+			colorLists[iColor] = new FixedList();
+		}
+	}
+
+	private void initializeAudioDispatcher() {
+		AudioInputStream inputStream = new AudioInputStream(line);
+		JVMAudioInputStream jvmInputStream = new JVMAudioInputStream(
+				inputStream);
+		audioDispatcher = new NonClosingDispatcher(jvmInputStream, BUFFER_SIZE,
+				OVERLAP);
+		silenceDetector = new SilenceDetector();
+		audioDispatcher.addAudioProcessor(silenceDetector);
+		audioDispatcher.addAudioProcessor(this);
 	}
 
 	@Override
-	public void stop() {
-		super.stop();
-		if (!isRunning && line != null && line.isOpen()) {
-			// line.close(); //not supported on all lines
-			line.stop();
-		}
-		collector.addEvent(
-			TCPEvent.createSendEventToMachineName(
-				Source.VISUALIZER,
-				"raspberry",
-				DioderEvent.createOffRequest(Source.VISUALIZER)));
-	}
-
-	@Override
-	public void run() {
-		// line.open(); reopening not supported on all lines
-		line.flush();
-		line.start();
-		while (line.isOpen() && isRunning) {
-			line.read(buffer, 0, buffer.length);
-			preProcess(buffer);
-			try {
-				Thread.sleep(0L);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
-	}
-
-	private void preProcess(byte[] raw) {
-		ByteBuffer byteBuffer = ByteBuffer.wrap(raw);
-		double[] buffer = new double[raw.length / 2];
-		int counter = 0;
-		while (byteBuffer.hasRemaining()) {
-			buffer[counter] = byteBuffer.getShort() / 32768.0d;
-			counter++;
-		}
-		fft.ft(buffer);
-
-		double r, i;
-		double[] magnitudes = new double[buffer.length / 2];
-		for (int iMagnitude = 0; iMagnitude < magnitudes.length; iMagnitude++) {
-			r = buffer[2 * iMagnitude];
-			i = buffer[2 * iMagnitude + 1];
-
-			magnitudes[iMagnitude] = Math.sqrt(Math.pow(i, 2) + Math.pow(r, 2));
-		}
-		visualize(magnitudes);
-	}
-
-	private void visualize(double[] magnitudes) {
-		int maxMagnitude = (int) magnitudes[0];
-		for (double magnitude : magnitudes) {
-			maxMagnitude = (int) Math.max(maxMagnitude, magnitude);
-		}
-		lastMaxMagnitudes.add(maxMagnitude);
+	public boolean process(AudioEvent audioEvent) {
 		Color nextColor = Color.BLACK;
-		int max = lastMaxMagnitudes.getMax();
-		int min = lastMaxMagnitudes.getMin();
-		int colorIndex = (int) ((maxMagnitude - min)
-				/ ((double) (max - min) / (colorTable.length)));
-		colorIndex = Math.max(colorIndex, 0);
-		colorIndex = Math.min(colorIndex, colorTable.length - 1);
-		nextColor = colorTable[colorIndex];
-
-		if (colorIndex == 0) {
-			blackCounter++;
-			if (blackCounter < 10) {
-				return;
-			}
-		} else {
-			blackCounter = 0;
+		if (silenceDetector.currentSPL() > SILENCE_THRESHOLD_IN_DB) {
+			doAudioFFTWith(audioEvent);
+			nextColor = getColorFromAmplitudes();
 		}
+		sendColorToPi(nextColor);
+		return true;
+	}
 
+	private Color getColorFromAmplitudes() {
+		int[] colorCode = new int[3];
+		float[] maxAmplitudes = getMaxAmplitudes();
+
+		for (int iColorCode = 0; iColorCode < colorCode.length; iColorCode++) {
+			colorQueues[iColorCode].add(maxAmplitudes[iColorCode]);
+
+			colorLists[iColorCode]
+					.addFirstRemoveLast(maxAmplitudes[iColorCode]);
+			float avg = colorLists[iColorCode].getAverage();
+			if (maxAmplitudes[iColorCode] < avg) {
+				maxAmplitudes[iColorCode] = avg;
+			} else {
+				colorLists[iColorCode].setAllTo(maxAmplitudes[iColorCode]);
+			}
+			maxAmplitudes[iColorCode] /= colorQueues[iColorCode].getMax();
+			maxAmplitudes[iColorCode] *= 255.0f * 1.1f; // 10% boost (brighter)
+			colorCode[iColorCode] = (int) Math
+					.max(maxAmplitudes[iColorCode], 0.0f);
+			colorCode[iColorCode] = (int) Math
+					.min(maxAmplitudes[iColorCode], 255.0f);
+		}
+		// bass = green middle = blue high = red
+		return new Color(colorCode[1], colorCode[2], colorCode[0]);
+	}
+
+	private float[] getMaxAmplitudes() {
+		float[] maxAmplitudes = new float[3];
+		for (int iAmplitude = 0; iAmplitude < (amplitudes.length / 3)
+				* 3; iAmplitude++) {
+			maxAmplitudes[iAmplitude / (amplitudes.length / 3)] = Math.max(
+				maxAmplitudes[iAmplitude / (amplitudes.length / 3)],
+				amplitudes[iAmplitude]);
+		}
+		return maxAmplitudes;
+	}
+
+	private void doAudioFFTWith(AudioEvent audioEvent) {
+		float[] audioFloatBuffer = audioEvent.getFloatBuffer();
+		float[] transformbuffer = new float[BUFFER_SIZE];
+		System.arraycopy(
+			audioFloatBuffer,
+			0,
+			transformbuffer,
+			0,
+			audioFloatBuffer.length);
+		fft.forwardTransform(transformbuffer);
+		fft.modulus(transformbuffer, amplitudes);
+	}
+
+	@Override
+	public void processingFinished() {
+	}
+
+	private void sendColorToPi(Color nextColor) {
 		collector.addEvent(
 			TCPEvent.createSendEventToMachineName(
 				Source.VISUALIZER,
@@ -220,41 +235,97 @@ public class Visualizer extends Module implements Runnable {
 					false)));
 	}
 
+	@Override
+	public void stop() {
+		super.stop();
+		if (!isRunning && line != null && line.isOpen()) {
+			line.stop();
+		}
+		collector.addEvent(
+			TCPEvent.createSendEventToMachineName(
+				Source.VISUALIZER,
+				"raspberry",
+				DioderEvent.createOffRequest(Source.VISUALIZER)));
+	}
+
+	private AudioFormat getAudioFormat() {
+		if (audioFormat == null) {
+			audioFormat = new AudioFormat(44100.0f, 16, 1, true, false);
+		}
+		return audioFormat;
+	}
+
 	private TargetDataLine getVirtualLine() throws LineUnavailableException {
+		Mixer mixer = getMixer();
+		if (mixer == null) {
+			return null;
+		}
+		return (TargetDataLine) mixer.getLine(
+			new DataLine.Info(TargetDataLine.class, getAudioFormat()));
+	}
+
+	private Mixer getMixer() {
 		Mixer mixer = null;
 		for (Mixer.Info mixerInfo : AudioSystem.getMixerInfo()) {
 			if (mixerInfo.getName().equals(VIRTUAL_MIXER_NAME)) {
 				mixer = AudioSystem.getMixer(mixerInfo);
 			}
 		}
-		if (mixer == null) {
-			return null;
+		return mixer;
+	}
+
+	private class FixedList {
+		private final int MAX_LENGTH = 10;
+
+		private LinkedList<Float> data;
+
+		public FixedList() {
+			data = new LinkedList<Float>();
+			setAllTo(0.0f);
 		}
-		AudioFormat audioFormat = new AudioFormat(
-				AudioFormat.Encoding.PCM_SIGNED, SAMPLE_RATE, 16, CHANNEL,
-				2 * CHANNEL, SAMPLE_RATE, true);
-		return (TargetDataLine) mixer
-				.getLine(new DataLine.Info(TargetDataLine.class, audioFormat));
+
+		public void addFirstRemoveLast(float newValue) {
+			data.removeLast();
+			data.addFirst(newValue);
+		}
+
+		public float getAverage() {
+			if (data.isEmpty()) {
+				return 0.0f;
+			}
+			float avg = 0.0f;
+			for (float f : data) {
+				avg += f;
+			}
+			return avg /= data.size();
+		}
+
+		public void setAllTo(float value) {
+			data.clear();
+			for (int i = 0; i < MAX_LENGTH; i++) {
+				data.add(value);
+			}
+		}
 	}
 
 	private class StaticQueue {
-		private final int MAGNITUDE_HISTORY_LENGTH = 1500;
+		private final int MAGNITUDE_HISTORY_LENGTH = 200;
 
-		private int[] data;
+		private float[] data;
 		private int nextIndex;
 
 		public StaticQueue() {
-			data = new int[MAGNITUDE_HISTORY_LENGTH];
+			data = new float[MAGNITUDE_HISTORY_LENGTH];
 			nextIndex = 0;
 		}
 
-		public void add(int value) {
+		public void add(float value) {
 			data[nextIndex % MAGNITUDE_HISTORY_LENGTH] = value;
 			nextIndex++;
 		}
 
-		public int getMax() {
-			int max = data[0];
+		public float getMax() {
+			float max = data[0];
 			for (int iValue = 0; iValue < Math
 					.min(nextIndex, MAGNITUDE_HISTORY_LENGTH); iValue++) {
 				max = Math.max(max, data[iValue]);
@@ -262,8 +333,8 @@ public class Visualizer extends Module implements Runnable {
 			return max;
 		}
 
-		public int getMin() {
-			int min = data[0];
+		public float getMin() {
+			float min = data[0];
 			for (int iValue = 0; iValue < Math
 					.min(nextIndex, MAGNITUDE_HISTORY_LENGTH); iValue++) {
 				min = Math.min(min, data[iValue]);
@@ -272,4 +343,5 @@ public class Visualizer extends Module implements Runnable {
 		}
 
 	}
+
 }

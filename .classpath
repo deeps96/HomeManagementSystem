@@ -20,10 +20,10 @@
 	<classpathentry kind="lib" path="libs/bluecove-2.1.1-SNAPSHOT.jar"/>
 	<classpathentry kind="lib" path="libs/bluecove-gpl-2.1.1-SNAPSHOT.jar"/>
 	<classpathentry kind="lib" path="libs/hid4java-develop-SNAPSHOT.jar"/>
-	<classpathentry kind="lib" path="libs/TarsosDSP-latest.jar"/>
 	<classpathentry kind="lib" path="libs/pi4j-core.jar"/>
 	<classpathentry kind="lib" path="libs/pi4j-device.jar"/>
 	<classpathentry kind="lib" path="libs/pi4j-example.jar"/>
 	<classpathentry kind="lib" path="libs/pi4j-gpio-extension.jar"/>
+	<classpathentry kind="lib" path="libs/TarsosDSP-latest.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>
